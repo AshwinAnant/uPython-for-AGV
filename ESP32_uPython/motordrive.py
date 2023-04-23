@@ -55,3 +55,9 @@ def stop():
     pinout.motor_right_forward(0)
     pinout.motor_right_reverse(0)
 
+def uTurn():
+    pinout.motor_left_forward(1)
+    pinout.motor_left_reverse(0)
+    pinout.motor_right_forward(0)
+    pinout.motor_right_reverse(1)
+    time.sleep(2.3)

@@ -8,31 +8,65 @@ import time
 import socket
 import network
 import ujson
+inc=0
+statusFlag= 0
 #Function to drive : forward(), left(), right(), sharpleft(), sharpright(), reverse(), stop()
 #Functions in network : network_connect(), server_connect(), send_data(path), receive_data()
-
+# 
 #networking.mqtt_connect()
+
 networking.network_connect()
 #networking.server_connect()
 def sub_cb(topic, msg):
-    msge=msg.decode()
-    msge=eval(msge)
-    print(msge[0])
-    print(msge[1])
-    run(msge[0],msge[1])
+    global inc
+    global nodePoint
+    global facingDirection
+    if topic==b"testTopic":
+        msge_decoded=msg.decode()
+        msge=eval(msge_decoded)
+        print(msge)
+        #msge[0]=eval(msge[0])
+        nodePoint=eval(msge[0])
+        print("The length of node is ",len(nodePoint))
+        #print(msge[1])
+        #print(msge[2])
+        #msge[2]=eval(msge[2])
+        facingDirection=eval(msge[2])
+        print("The length of direction is ",len(facingDirection))
+        run(msge[0],msge[1])
+    if topic==b"interrupt":
+        print("Received flag")
+#         global status
+#         status=False
+        topic="location"
+        location_info=[]
+        location_info.append(nodePoint[inc])
+        location_info.append(facingDirection[inc])
+        payload=str(location_info)
+        mqttc.publish(topic,payload)
+
+        global statusFlag
+        statusFlag= 1
+        
 CLIENT_NAME= 'client'
 BROKER_ADDR='192.168.29.15'
-mqttc= MQTTClient(CLIENT_NAME,BROKER_ADDR,keepalive=120)
+mqttc= MQTTClient(CLIENT_NAME,BROKER_ADDR,keepalive=1000)
 mqttc.connect()
 print("connected to broker")
 # Subscribe to topic and attach callback function
 mqttc.set_callback(sub_cb)
-mqttc.subscribe("testTopic")
+mqttc.subscribe(b"testTopic")
+mqttc.subscribe(b"interrupt")
+
+# def on_message(topic, msg):
+#     print("Received message: " + msg.decode())
+#     print("after check")
 
 def run(path,direction):
+    global inc
     direction=eval(direction)
     path=eval(path)
-    print(len(direction))
+    #print(len(direction))
     # Main program loop
     x=0
     k=0
@@ -76,12 +110,20 @@ def run(path,direction):
             #print("right")
             
         elif line_position == "stop":
+            print("Entered Elif")
             motordrive.stop() # changed before trial
             time.sleep(0.5)
+            inc=inc+1
+            # Check for incoming messages
+            mqttc.check_msg()
+            print("The Status Flag :",statusFlag)
+            if x>=len(direction) or statusFlag==1:
+                status=False
+                
 #             print("stop")
             
             
-            if x<len(direction):
+            if x<len(direction) and statusFlag==0:
                 if direction[x]== 'straight':
                     motordrive.forward()
                     x=x+1
@@ -105,13 +147,12 @@ def run(path,direction):
                     print('pause')
                     
                 elif direction[x]=='uTurn':
-                    motordrive.right()
-                    motordrive.right()
+                    motordrive.uTurn()
                     x=x+2
                     print('uTurn')
                     
-                if x>=len(direction):
-                    status=False
+                
+                    
                     
             
               # Adjust the delay time based on the line position to control the robot speed
@@ -121,5 +162,10 @@ def run(path,direction):
             time.sleep(0.005)
                       
 while True:
+    statusFlag=0
+    motordrive.stop()
     mqttc.wait_msg()
 
+
+
+    
