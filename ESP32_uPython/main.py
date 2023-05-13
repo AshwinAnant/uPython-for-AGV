@@ -10,41 +10,31 @@ import network
 import ujson
 inc=0
 statusFlag= 0
+last_function_called="wait_msg"
 #Function to drive : forward(), left(), right(), sharpleft(), sharpright(), reverse(), stop()
 #Functions in network : network_connect(), server_connect(), send_data(path), receive_data()
-# 
-#networking.mqtt_connect()
 
 networking.network_connect()
-#networking.server_connect()
+
 def sub_cb(topic, msg):
     global inc
     global nodePoint
     global facingDirection
+    global last_function_called
     if topic==b"testTopic":
+        print("testTopic entered")
         msge_decoded=msg.decode()
         msge=eval(msge_decoded)
         print(msge)
-        #msge[0]=eval(msge[0])
         nodePoint=eval(msge[0])
-        print("The length of node is ",len(nodePoint))
-        #print(msge[1])
-        #print(msge[2])
-        #msge[2]=eval(msge[2])
+        #print("The length of node is ",len(nodePoint))
         facingDirection=eval(msge[2])
-        print("The length of direction is ",len(facingDirection))
+        #print("The length of direction is ",len(facingDirection))
+        #inc=0
         run(msge[0],msge[1])
     if topic==b"interrupt":
-        print("Received flag")
-#         global status
-#         status=False
-        topic="location"
-        location_info=[]
-        location_info.append(nodePoint[inc])
-        location_info.append(facingDirection[inc])
-        payload=str(location_info)
-        mqttc.publish(topic,payload)
-
+        print("interrupt entered")
+        inc=0
         global statusFlag
         statusFlag= 1
         
@@ -55,19 +45,17 @@ mqttc.connect()
 print("connected to broker")
 # Subscribe to topic and attach callback function
 mqttc.set_callback(sub_cb)
-mqttc.subscribe(b"testTopic")
+#mqttc.subscribe(b"testTopic")
 mqttc.subscribe(b"interrupt")
-
-# def on_message(topic, msg):
-#     print("Received message: " + msg.decode())
-#     print("after check")
-
+startingLocation=[2,0]
+mqttc.publish("location",str(startingLocation))
 def run(path,direction):
     global inc
+    global last_function_called
+    global statusFlag
     direction=eval(direction)
     path=eval(path)
     #print(len(direction))
-    # Main program loop
     x=0
     k=0
     status=True
@@ -84,8 +72,7 @@ def run(path,direction):
             line_position = "center"
         elif left_most_value ==0 or right_most_value ==0:
             line_position = "stop"
-            print("stop")
-
+            
             if k<len(path):
                 #networking.send_data(path[k])
                 k=k+1
@@ -110,46 +97,63 @@ def run(path,direction):
             #print("right")
             
         elif line_position == "stop":
-            print("Entered Elif")
+            ####print("Entered Elif")
+            print("stop")
             motordrive.stop() # changed before trial
             time.sleep(0.5)
+            topic="location"
+            location_info=[]
+            if inc<len(nodePoint):
+                location_info.append(nodePoint[inc])
+                location_info.append(facingDirection[inc])
+                
+            if location_info != []:
+                payload=str(location_info)
+                print(payload)
+                mqttc.publish(topic,payload)
             inc=inc+1
+            ####print("The precheck status is",status)
+            #last_function_called="check_msg"
             # Check for incoming messages
+            statusFlag=0
             mqttc.check_msg()
-            print("The Status Flag :",statusFlag)
+#             statusFlag=0
+#             inc=0
+            ####print("The postcheck status is",status)
+            ####print("The Status Flag :",statusFlag)
+            ####print("x=",x)
+            if statusFlag==1:
+                print("Received flag")
             if x>=len(direction) or statusFlag==1:
                 status=False
-                
-#             print("stop")
-            
-            
+
             if x<len(direction) and statusFlag==0:
                 if direction[x]== 'straight':
                     motordrive.forward()
                     x=x+1
-                    print('straight')
-                    time.sleep(0.5)
+                    ####print('straight')
+                    time.sleep(0.9)
                     
                 elif direction[x]=='right':
                     motordrive.sharpright()
                     x=x+2
-                    print('right')
+                    ####print('right')
                     
                 elif direction[x]=='left':
                     motordrive.sharpleft()
                     x=x+2
-                    print('left')
+                    ####print('left')
                     
                 elif direction[x]=='pause':
                     motordrive.stop()
                     time.sleep(3)
                     x=x+1
-                    print('pause')
+                    ####print('pause')
                     
                 elif direction[x]=='uTurn':
                     motordrive.uTurn()
                     x=x+2
-                    print('uTurn')
+                    ####print('uTurn')
                     
                 
                     
@@ -162,9 +166,18 @@ def run(path,direction):
             time.sleep(0.005)
                       
 while True:
+    ####print("Starting of condition")
+    mqttc.subscribe(b"testTopic")
     statusFlag=0
     motordrive.stop()
+    inc=0
+    ####print("Ending of condition")
+    #last_function_called="wait_msg"
     mqttc.wait_msg()
+    #print("way to unsubcribe")
+    #mqttc.unsubscribe(b"testTopic")
+    ####print("before sending completed")
+    mqttc.publish("comp","completed")
 
 
 
